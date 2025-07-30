@@ -1,0 +1,47 @@
+{
+  "name": "gai-cli",
+  "version": "1.0.0",
+  "description": "An AI-powered CLI to generate conventional commit messages using Google Gemini.",
+  "author": "Freilyn Bernabe <freilyn@bernabe.dev>",
+  "license": "MIT",
+  "keywords": [
+    "git",
+    "cli",
+    "ai",
+    "commit",
+    "gemini",
+    "conventional-commits",
+    "automation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bernabedev/gai-cli.git"
+  },
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "module": "index.ts",
+  "type": "module",
+  "bin": {
+    "gai": "build/index.js"
+  },
+  "files": [
+    "build",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rm -rf build && bun build src/index.ts --outdir ./build --target bun",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@google/genai": "^1.11.0",
+    "commander": "^14.0.0",
+    "execa": "^9.6.0",
+    "picocolors": "^1.1.1"
+  }
+}
