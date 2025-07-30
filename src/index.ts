@@ -1,8 +1,8 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --no-deprecation
 import { GoogleGenAI } from "@google/genai";
+import chalk from "chalk";
 import { program } from "commander";
 import { execa } from "execa";
-import pc from "picocolors";
 
 // Initialize Google Gemini client (picks up GEMINI_API_KEY from .env)
 const ai = new GoogleGenAI({});
@@ -10,7 +10,7 @@ const ai = new GoogleGenAI({});
 /**
  * Retrieves the diff of staged changes in git.
  */
-async function getStagedDiff() {
+async function getStagedDiff(): Promise<string> {
   const { stdout } = await execa("git", ["diff", "--staged"]);
   return stdout.trim();
 }
@@ -82,24 +82,29 @@ program
     "english",
   )
   .action(async (options) => {
-    if (options.verbose) console.log(pc.cyan("Starting commit process..."));
+    if (options.verbose) {
+      console.log(chalk.cyan("Starting commit process..."));
+    }
 
     if (options.all) {
-      if (options.verbose) console.log(pc.yellow("Staging all changes..."));
+      if (options.verbose) {
+        console.log(chalk.yellow("Staging all changes..."));
+      }
       await execa("git", ["add", "-A"], { stdio: "inherit" });
     }
 
     const stagedDiff = await getStagedDiff();
     if (!stagedDiff && !options.amend) {
-      console.log(pc.yellow("No staged changes. Use '-a' to add all changes."));
+      console.log(
+        chalk.yellow("No staged changes. Use '-a' to add all changes."),
+      );
       process.exit(0);
     }
 
     let commitMessage = options.message;
 
     if (!commitMessage) {
-      if (options.verbose)
-        console.log(pc.cyan("Generating commit message with AI..."));
+      console.log(chalk.cyan("Generating commit message with AI..."));
       try {
         commitMessage = await generateCommitMessage(
           stagedDiff,
@@ -107,35 +112,35 @@ program
           options.type,
           options.scope,
         );
-        if (options.verbose)
-          console.log(pc.green("Message generated successfully."));
+        if (options.verbose) {
+          console.log(chalk.green("Message generated successfully."));
+        }
       } catch (error) {
-        console.error(pc.red("Failed to generate commit message."), error);
+        console.error(chalk.red("Failed to generate commit message."), error);
         process.exit(1);
       }
     }
 
     // Build git command
-    const gitCommand = ["git", "commit"];
+    const gitCommand = ["commit"];
     if (options.amend) {
       gitCommand.push("--amend");
     }
     gitCommand.push("-m", commitMessage);
 
-    console.log(`\n${pc.bgGreen(pc.black(" COMMIT READY "))}`);
-    console.log(pc.green(commitMessage));
+    console.log(
+      `\n${chalk.bgGreen.black(" COMMIT READY ")}\n${chalk.green(commitMessage)}`,
+    );
 
     if (options.dryRun) {
       console.log(
-        `\n${pc.yellow("Dry Run: The following command will not be executed:")}`,
+        `\n${chalk.yellow("Dry Run: The following command will not be executed:")}`,
       );
-      console.log(pc.gray(`$ ${gitCommand.join(" ")}`));
+      console.log(chalk.gray(`$ git ${gitCommand.join(" ")}`));
     } else {
-      console.log(pc.cyan("\nExecuting commit..."));
-      await execa("git", gitCommand.slice(1), {
-        stdio: "inherit",
-      });
-      console.log(pc.green("\n✔ Commit completed successfully!"));
+      console.log(chalk.cyan("\nExecuting commit..."));
+      await execa("git", gitCommand, { stdio: "inherit" });
+      console.log(chalk.green("\n✔ Commit completed successfully!"));
     }
   });
 
