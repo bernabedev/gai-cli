@@ -16,13 +16,28 @@ async function getStagedDiff(): Promise<string> {
 }
 
 /**
+ * Retrieves the last commit message.
+ */
+async function getLastCommitMessage(): Promise<string> {
+  const { stdout } = await execa("git", ["log", "-1", "--pretty=%B"]);
+  return stdout.trim();
+}
+
+/**
  * Generates a Conventional Commit message using Google Gemini.
+ *
+ * @param diff The staged git diff
+ * @param lang Language for the commit message
+ * @param type Optional commit type (feat, fix, etc.)
+ * @param scope Optional commit scope
+ * @param previousMsg Optional previous commit message when amending
  */
 async function generateCommitMessage(
   diff: string,
   lang: string = "english",
   type?: string,
   scope?: string,
+  previousMsg?: string,
 ): Promise<string> {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("The environment variable GEMINI_API_KEY is not defined.");
@@ -31,6 +46,9 @@ async function generateCommitMessage(
   const languageInstruction = `The commit message must be in ${lang}.`;
   const typeInstruction = type ? `The commit type must be "${type}".` : "";
   const scopeInstruction = scope ? `The commit scope must be "${scope}".` : "";
+  const previousInstruction = previousMsg
+    ? `- The previous commit message was:\n"""${previousMsg}"""\n- Incorporate and update it as needed.`
+    : "";
 
   const prompt = `
 Analyze the following git diff and generate a Conventional Commit message that accurately describes the changes made.
@@ -46,13 +64,14 @@ Analyze the following git diff and generate a Conventional Commit message that a
 - If the commit adds tests, use "test".
 - If the commit updates documentation, use "docs".
 - Do not include unnecessary details; keep it clear and to the point.
+${previousInstruction}
+- **Return ONLY the raw commit message text without any formatting, quotes, backticks, or delimiters.**
 
 Here is the git diff:
 
 ${diff}
 `;
 
-  // Call Gemini
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,
@@ -101,8 +120,15 @@ program
       process.exit(0);
     }
 
-    let commitMessage = options.message;
+    let previousMsg: string | undefined;
+    if (options.amend) {
+      if (options.verbose) {
+        console.log(chalk.blue("Fetching last commit message for context..."));
+      }
+      previousMsg = await getLastCommitMessage();
+    }
 
+    let commitMessage = options.message;
     if (!commitMessage) {
       console.log(chalk.cyan("Generating commit message with AI..."));
       try {
@@ -111,6 +137,7 @@ program
           options.lang,
           options.type,
           options.scope,
+          previousMsg,
         );
         if (options.verbose) {
           console.log(chalk.green("Message generated successfully."));
@@ -122,11 +149,9 @@ program
     }
 
     // Build git command
-    const gitCommand = ["commit"];
-    if (options.amend) {
-      gitCommand.push("--amend");
-    }
-    gitCommand.push("-m", commitMessage);
+    const gitArgs = ["commit"];
+    if (options.amend) gitArgs.push("--amend");
+    gitArgs.push("-m", commitMessage);
 
     console.log(
       `\n${chalk.bgGreen.black(" COMMIT READY ")}\n${chalk.green(commitMessage)}`,
@@ -136,10 +161,10 @@ program
       console.log(
         `\n${chalk.yellow("Dry Run: The following command will not be executed:")}`,
       );
-      console.log(chalk.gray(`$ git ${gitCommand.join(" ")}`));
+      console.log(chalk.gray(`$ git ${gitArgs.join(" ")}`));
     } else {
       console.log(chalk.cyan("\nExecuting commit..."));
-      await execa("git", gitCommand, { stdio: "inherit" });
+      await execa("git", gitArgs, { stdio: "inherit" });
       console.log(chalk.green("\n✔ Commit completed successfully!"));
     }
   });
