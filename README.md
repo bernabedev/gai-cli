@@ -5,16 +5,16 @@
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org)
 [![Built with: TypeScript](https://img.shields.io/badge/Built%20with-TypeScript-blue.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-Say goodbye to tedious commit messages. `gai` is a command-line interface (CLI) that leverages Google's Gemini AI to automatically generate clear, concise, and conventional commit messages from your staged changes.
+Say goodbye to tedious commit messages. `gai` is a command-line interface (CLI) that leverages AI to automatically generate clear, concise, and conventional commit messages from your staged changes.
 
 ## Features
 
--   **Intelligent Commit Generation**: Uses Google Gemini to analyze your code changes (`git diff`) and write a high-quality commit message.
--   **Conventional Commits Compliant**: Generated messages follow the [Conventional Commits](https://www.conventionalcommits.org/) specification, improving your project's history clarity.
--   **Highly Customizable**: Force a specific commit type, add a scope, or generate messages in different languages.
--   **Seamless Git Workflow**: Integrates directly with your existing Git workflow. Use it to stage all files, amend previous commits, or just to get a message suggestion.
--   **Safe & Transparent**: Use `--dry-run` to preview the commit message and command before execution, and `--verbose` for detailed output.
--   **Runtime Agnostic**: Works in any standard Node.js environment.
+-   **Intelligent Commit Generation**: Analyzes your code changes (`git diff`) and writes a high-quality commit message.
+-   **Zero Configuration Required**: Works out-of-the-box by using a public backend. No API key needed to get started.
+-   **API-Key Optional**: You can optionally provide your own Google Gemini API key for private, direct API access.
+-   **Conventional Commits Compliant**: Generated messages follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+-   **Seamless Git Workflow**: Integrates directly with your Git workflow, supporting staging, amending, and more.
+-   **Safe & Transparent**: Use `--dry-run` to preview the commit and `--verbose` for detailed output.
 
 ## Prerequisites
 
@@ -29,13 +29,33 @@ Install `gai` globally on your system using `npm`. This will make the `gai` comm
 ```bash
 npm install -g gai-cli
 ```
-*(Remember to replace `gai-cli` with the actual package name on npm).*
 
 Once installed, you can run `gai` from any Git repository on your system.
 
-## Configuration: Setting up your Gemini API Key
+## Usage
 
-`gai` requires a Google Gemini API key to function.
+Using `gai` is simple. Navigate to your Git repository, stage some files, and run the command.
+
+### Basic Usage
+
+1.  Stage the files you want to commit:
+    ```bash
+    git add src/index.ts package.json
+    ```
+
+2.  Run `gai` to generate and create the commit:
+    ```bash
+    gai
+    ```
+
+This will analyze the staged changes, generate a commit message, display it for you, and then execute the `git commit` command.
+## Optional Configuration: Using Your Own API Key
+
+`gai` is designed to work without any configuration. By default, it uses a shared public backend to generate commit messages, making it accessible to everyone immediately.
+
+However, if you prefer to use your own Google Gemini API key for privacy, to bypass potential rate limits on the public endpoint, or to have direct control over the AI model, you can optionally provide it by setting the `GEMINI_API_KEY` environment variable.
+
+If you wish to use your own key, follow these steps:
 
 1.  **Get an API Key**: Visit [Google AI Studio](https://aistudio.google.com/app/apikey) to create your free API key.
 
@@ -59,24 +79,6 @@ Once installed, you can run `gai` from any Git repository on your system.
     # or
     source ~/.bashrc
     ```
-
-## Usage
-
-Using `gai` is simple. Navigate to your Git repository, stage some files, and run the command.
-
-### Basic Usage
-
-1.  Stage the files you want to commit:
-    ```bash
-    git add src/index.ts package.json
-    ```
-
-2.  Run `gai` to generate and create the commit:
-    ```bash
-    gai
-    ```
-
-This will analyze the staged changes, generate a commit message, display it for you, and then execute the `git commit` command.
 
 ### Options
 
