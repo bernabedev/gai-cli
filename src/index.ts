@@ -1,6 +1,5 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { GoogleGenAI } from "@google/genai";
-import { $ } from "bun";
 import { program } from "commander";
 import { execa } from "execa";
 import pc from "picocolors";
@@ -87,7 +86,7 @@ program
 
     if (options.all) {
       if (options.verbose) console.log(pc.yellow("Staging all changes..."));
-      await $`git add -A`;
+      await execa("git", ["add", "-A"], { stdio: "inherit" });
     }
 
     const stagedDiff = await getStagedDiff();

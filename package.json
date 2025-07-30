@@ -29,7 +29,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "rm -rf build && bun build src/index.ts --outdir ./build --target bun",
+    "build": "rm -rf build && bun build src/index.ts --outdir ./build --target node",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
