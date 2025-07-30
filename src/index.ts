@@ -6,6 +6,9 @@ import { execa } from "execa";
 
 // Initialize Google Gemini client (picks up GEMINI_API_KEY from .env)
 const ai = new GoogleGenAI({});
+const config = {
+  baseApiUrl: "https://gen.bernabe.dev",
+} as const;
 
 /**
  * Retrieves the diff of staged changes in git.
@@ -39,7 +42,7 @@ async function generateCommitMessage(
   scope?: string,
   previousMsg?: string,
 ): Promise<string> {
-  if (process.env.GEMINI_API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     const body = JSON.stringify({
       diff,
       lang,
@@ -47,7 +50,7 @@ async function generateCommitMessage(
       scope,
       previousMsg,
     });
-    const res = await fetch("http://localhost:3000/gai/gene", {
+    const res = await fetch(`${config.baseApiUrl}/gai/gene`, {
       method: "POST",
       body,
       headers: {
