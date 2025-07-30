@@ -39,8 +39,26 @@ async function generateCommitMessage(
   scope?: string,
   previousMsg?: string,
 ): Promise<string> {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new Error("The environment variable GEMINI_API_KEY is not defined.");
+  if (process.env.GEMINI_API_KEY) {
+    const body = JSON.stringify({
+      diff,
+      lang,
+      type,
+      scope,
+      previousMsg,
+    });
+    const res = await fetch("http://localhost:3000/gai/gene", {
+      method: "POST",
+      body,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    const data = (await res.json()) as { message: string };
+    if (!res.ok) {
+      throw new Error(`Failed to generate commit message`);
+    }
+    return data.message as string;
   }
 
   const languageInstruction = `The commit message must be in ${lang}.`;
