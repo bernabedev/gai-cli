@@ -11,23 +11,57 @@ const config = {
 } as const;
 
 /**
+ * A centralized error handler to provide consistent, user-friendly error messages.
+ * @param message A user-friendly message describing the error.
+ * @param error The underlying error object (optional).
+ */
+function handleError(message: string, error?: any): never {
+  console.error(chalk.red.bold(`\n❌ Error: ${message}`));
+  if (error) {
+    // execa errors often have more specific details in stderr
+    const details = error.stderr || error.message;
+    if (details) {
+      console.error(chalk.gray(`  > ${details.trim()}`));
+    }
+  }
+  console.error(chalk.yellow("\nAborting commit process."));
+  process.exit(1);
+}
+
+/**
  * Retrieves the diff of staged changes in git.
+ * Exits the process if the command fails.
  */
 async function getStagedDiff(): Promise<string> {
-  const { stdout } = await execa("git", ["diff", "--staged"]);
-  return stdout.trim();
+  try {
+    const { stdout } = await execa("git", ["diff", "--staged"]);
+    return stdout.trim();
+  } catch (error) {
+    return handleError(
+      "Could not retrieve staged diff. Are you in a git repository?",
+      error
+    );
+  }
 }
 
 /**
  * Retrieves the last commit message.
+ * Exits the process if the command fails.
  */
 async function getLastCommitMessage(): Promise<string> {
-  const { stdout } = await execa("git", ["log", "-1", "--pretty=%B"]);
-  return stdout.trim();
+  try {
+    const { stdout } = await execa("git", ["log", "-1", "--pretty=%B"]);
+    return stdout.trim();
+  } catch (error) {
+    return handleError(
+      "Could not retrieve the last commit message. Are there any commits in this repository yet?",
+      error
+    );
+  }
 }
 
 /**
- * Generates a Conventional Commit message using Google Gemini.
+ * Generates a Conventional Commit message using Google Gemini or a fallback API.
  *
  * @param diff The staged git diff
  * @param lang Language for the commit message
@@ -40,30 +74,40 @@ async function generateCommitMessage(
   lang: string = "english",
   type?: string,
   scope?: string,
-  previousMsg?: string,
+  previousMsg?: string
 ): Promise<string> {
+  // --- Fallback API Path ---
   if (!process.env.GEMINI_API_KEY) {
-    const body = JSON.stringify({
-      diff,
-      lang,
-      type,
-      scope,
-      previousMsg,
-    });
-    const res = await fetch(`${config.baseApiUrl}/gai/gene`, {
-      method: "POST",
-      body,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-    const data = (await res.json()) as { message: string };
-    if (!res.ok) {
-      throw new Error(`Failed to generate commit message`);
+    try {
+      const body = JSON.stringify({ diff, lang, type, scope, previousMsg });
+      const res = await fetch(`${config.baseApiUrl}/gai/gene`, {
+        method: "POST",
+        body,
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(
+          `API request failed with status ${res.status}: ${errorText}`
+        );
+      }
+      const data = (await res.json()) as { message: string };
+      if (!data.message) {
+        throw new Error("Fallback API returned an empty message.");
+      }
+      return data.message;
+    } catch (error) {
+      // Re-throw a more specific error to be caught by the main handler
+      throw new Error(
+        `Fallback API failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
-    return data.message as string;
   }
 
+  // --- Google Gemini SDK Path ---
   const languageInstruction = `The commit message must be in ${lang}.`;
   const typeInstruction = type ? `The commit type must be "${type}".` : "";
   const scopeInstruction = scope ? `The commit scope must be "${scope}".` : "";
@@ -92,17 +136,24 @@ Here is the git diff:
 
 ${diff}
 `;
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
-
-  const message = response.text?.trim();
-  if (!message) {
-    throw new Error("Gemini returned an empty message.");
+    const message = response.text?.trim();
+    if (!message) {
+      throw new Error("Gemini returned an empty or invalid response.");
+    }
+    return message;
+  } catch (error) {
+    throw new Error(
+      `Google Gemini API call failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
-  return message;
 }
 
 // --- CLI Definition ---
@@ -119,74 +170,92 @@ program
   .option(
     "-l, --lang <lang>",
     "Language for the commit message (e.g., 'spanish', 'english').",
-    "english",
+    "english"
   )
   .action(async (options) => {
-    if (options.verbose) {
-      console.log(chalk.cyan("Starting commit process..."));
-    }
-
-    if (options.all) {
+    try {
       if (options.verbose) {
-        console.log(chalk.yellow("Staging all changes..."));
+        console.log(chalk.cyan("Starting commit process..."));
       }
-      await execa("git", ["add", "-A"], { stdio: "inherit" });
-    }
 
-    const stagedDiff = await getStagedDiff();
-    if (!stagedDiff && !options.amend) {
-      console.log(
-        chalk.yellow("No staged changes. Use '-a' to add all changes."),
-      );
-      process.exit(0);
-    }
-
-    let previousMsg: string | undefined;
-    if (options.amend) {
-      if (options.verbose) {
-        console.log(chalk.blue("Fetching last commit message for context..."));
+      if (options.all) {
+        if (options.verbose) {
+          console.log(chalk.yellow("Staging all changes..."));
+        }
+        try {
+          await execa("git", ["add", "-A"], { stdio: "inherit" });
+        } catch (error) {
+          handleError("Failed to stage all changes.", error);
+        }
       }
-      previousMsg = await getLastCommitMessage();
-    }
 
-    let commitMessage = options.message;
-    if (!commitMessage) {
-      console.log(chalk.cyan("Generating commit message with AI..."));
-      try {
+      const stagedDiff = await getStagedDiff();
+      if (!stagedDiff && !options.amend) {
+        console.log(
+          chalk.yellow(
+            "No staged changes to commit. Use '-a' to add all changes or stage files manually."
+          )
+        );
+        process.exit(0);
+      }
+
+      let previousMsg: string | undefined;
+      if (options.amend) {
+        if (options.verbose) {
+          console.log(
+            chalk.blue("Fetching last commit message for context...")
+          );
+        }
+        previousMsg = await getLastCommitMessage();
+      }
+
+      let commitMessage = options.message;
+      if (!commitMessage) {
+        console.log(chalk.cyan("Generating commit message with AI..."));
         commitMessage = await generateCommitMessage(
           stagedDiff,
           options.lang,
           options.type,
           options.scope,
-          previousMsg,
+          previousMsg
         );
         if (options.verbose) {
           console.log(chalk.green("Message generated successfully."));
         }
-      } catch (error) {
-        console.error(chalk.red("Failed to generate commit message."), error);
-        process.exit(1);
       }
-    }
 
-    // Build git command
-    const gitArgs = ["commit"];
-    if (options.amend) gitArgs.push("--amend");
-    gitArgs.push("-m", commitMessage);
+      // Build git command
+      const gitArgs = ["commit"];
+      if (options.amend) gitArgs.push("--amend");
+      gitArgs.push("-m", commitMessage);
 
-    console.log(
-      `\n${chalk.bgGreen.black(" COMMIT READY ")}\n${chalk.green(commitMessage)}`,
-    );
-
-    if (options.dryRun) {
       console.log(
-        `\n${chalk.yellow("Dry Run: The following command will not be executed:")}`,
+        `\n${chalk.bgGreen.black(" COMMIT READY ")}\n${chalk.green(
+          commitMessage
+        )}`
       );
-      console.log(chalk.gray(`$ git ${gitArgs.join(" ")}`));
-    } else {
-      console.log(chalk.cyan("\nExecuting commit..."));
-      await execa("git", gitArgs, { stdio: "inherit" });
-      console.log(chalk.green("\n✔ Commit completed successfully!"));
+
+      if (options.dryRun) {
+        console.log(
+          `\n${chalk.yellow(
+            "Dry Run: The following command will not be executed:"
+          )}`
+        );
+        console.log(chalk.gray(`$ git ${gitArgs.join(" ")}`));
+      } else {
+        console.log(chalk.cyan("\nExecuting commit..."));
+        try {
+          await execa("git", gitArgs, { stdio: "inherit" });
+          console.log(chalk.green("\n✔ Commit completed successfully!"));
+        } catch (error) {
+          // The commit itself can fail (e.g., pre-commit hooks)
+          handleError("The git commit command failed.", error);
+        }
+      }
+    } catch (error) {
+      // This is a top-level catch-all for any unexpected errors,
+      // especially from the generateCommitMessage function.
+      handleError("An unexpected error occurred", error);
     }
   });
 
