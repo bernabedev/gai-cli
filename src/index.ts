@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import chalk from "chalk";
 import { program } from "commander";
 import { execa } from "execa";
+import packageJson from "../package.json" assert { type: "json" };
 
 // Initialize Google Gemini client (picks up GEMINI_API_KEY from .env)
 const ai = new GoogleGenAI({});
@@ -158,7 +159,7 @@ ${diff}
 
 // --- CLI Definition ---
 program
-  .version("1.0.0")
+  .version(packageJson.version)
   .description("A CLI for generating and creating smart commits with AI.")
   .option("-m, --message <message>", "Custom commit message (skip AI).")
   .option("-a, --all", "Include all changes (runs 'git add -A').")

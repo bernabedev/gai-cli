@@ -1,6 +1,6 @@
 {
   "name": "gai-cli",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "An AI-powered CLI to generate conventional commit messages using Google Gemini.",
   "author": "Freilyn Bernabe <freilyn@bernabe.dev>",
   "license": "MIT",
